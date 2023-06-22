@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calc Editor</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<h2>Calculator</h2>
+<div id="container" style="width:800px;height:600px;border:1px solid grey"></div>
+<button id="submitButton">Submit</button>
+<div id="result"></div>
+
+<script src="node_modules/monaco-editor/min/vs/loader.js"></script>
+<script src="js/main.js"></script>
+<script src="node_modules/jquery/dist/jquery.min.js"></script>
+
+<script>
+    require.config({paths: {'vs': 'node_modules/monaco-editor/min/vs'}});
+
+    require(['vs/editor/editor.main'], function () {
+        monaco.languages.register({id: 'calc'});
+
+        monaco.languages.setTokensProvider('calc', new CalcTokensProvider.CalcTokensProvider());
+
+        let literalFg = '3b8737';
+        let idFg = '344482';
+        let symbolsFg = '000000';
+        let keywordFg = '7132a8';
+        let errorFg = 'ff0000';
+        let radixFg = 'ffa500';
+
+        monaco.editor.defineTheme('myCoolTheme', {
+            base: 'vs',
+            inherit: false,
+            rules: [
+                {token: 'id.calc', foreground: idFg, fontStyle: 'italic'},
+                {token: 'number.calc', foreground: literalFg},
+                {token: 'plus.calc', foreground: symbolsFg},
+                {token: 'equal.calc', foreground: symbolsFg},
+                {token: 'minus.calc', foreground: symbolsFg},
+                {token: 'mult.calc', foreground: symbolsFg},
+                {token: 'div.calc', foreground: symbolsFg},
+                {token: 'lpar.calc', foreground: symbolsFg},
+                {token: 'rpar.calc', foreground: symbolsFg},
+                {token: 'radix.calc', foreground: radixFg}
+            ]
+        });
+
+        let editor = monaco.editor.create(document.getElementById('container'), {
+            value: [].join('\n'),
+            language: 'calc',
+            theme: 'myCoolTheme'
+        });
+        editor.onDidChangeModelContent(function (e) {
+            let code = editor.getValue()
+            let syntaxErrors = ParserFacade.validate(code);
+            let monacoErrors = [];
+            for (let e of syntaxErrors) {
+                monacoErrors.push({
+                    startLineNumber: e.startLine,
+                    startColumn: e.startCol,
+                    endLineNumber: e.endLine,
+                    endColumn: e.endCol,
+                    message: e.message,
+                    severity: monaco.MarkerSeverity.Error
+                });
+            }
+            ;
+            window.syntaxErrors = syntaxErrors;
+            let model = monaco.editor.getModels()[0];
+            monaco.editor.setModelMarkers(model, "owner", monacoErrors);
+        });
+
+        const submitButton = document.getElementById('submitButton');
+        const resultContainer = document.getElementById('result');
+
+        submitButton.addEventListener('click', () => {
+            const expression = editor.getValue();
+
+            $.ajax({
+                url: '/api/calculate',
+                type: 'POST',
+                data: expression,
+                contentType: 'text/plain',
+                success: function (response) {
+                    resultContainer.textContent = response;
+                },
+                error: function (xhr, status, error) {
+                    resultContainer.textContent = 'An error occurred. Please try again.';
+                }
+            });
+        });
+
+    });
+</script>
+</body>
+</html>
